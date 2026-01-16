@@ -1,0 +1,299 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Dark theme (default) */
+  --editor-bg: rgba(24, 24, 27, 0.95);
+  --editor-text: #e4e4e7;
+  --editor-border: rgba(63, 63, 70, 0.8);
+  --editor-accent: #6366f1;
+  --editor-muted: #71717a;
+  --editor-surface: rgba(39, 39, 42, 0.9);
+  --editor-hover: rgba(63, 63, 70, 0.5);
+}
+
+.theme-light {
+  --editor-bg: rgba(255, 255, 255, 0.95);
+  --editor-text: #18181b;
+  --editor-border: rgba(228, 228, 231, 0.8);
+  --editor-accent: #4f46e5;
+  --editor-muted: #a1a1aa;
+  --editor-surface: rgba(244, 244, 245, 0.9);
+  --editor-hover: rgba(228, 228, 231, 0.5);
+}
+
+.theme-high-contrast {
+  --editor-bg: rgba(0, 0, 0, 1);
+  --editor-text: #ffffff;
+  --editor-border: rgba(255, 255, 255, 0.3);
+  --editor-accent: #fbbf24;
+  --editor-muted: #9ca3af;
+  --editor-surface: rgba(17, 17, 17, 1);
+  --editor-hover: rgba(255, 255, 255, 0.1);
+}
+
+/* Pro themes */
+.theme-solarized-dark {
+  --editor-bg: rgba(0, 43, 54, 0.95);
+  --editor-text: #839496;
+  --editor-border: rgba(88, 110, 117, 0.8);
+  --editor-accent: #268bd2;
+  --editor-muted: #657b83;
+  --editor-surface: rgba(7, 54, 66, 0.9);
+  --editor-hover: rgba(88, 110, 117, 0.3);
+}
+
+.theme-solarized-light {
+  --editor-bg: rgba(253, 246, 227, 0.95);
+  --editor-text: #657b83;
+  --editor-border: rgba(238, 232, 213, 0.8);
+  --editor-accent: #268bd2;
+  --editor-muted: #93a1a1;
+  --editor-surface: rgba(238, 232, 213, 0.9);
+  --editor-hover: rgba(147, 161, 161, 0.2);
+}
+
+.theme-dracula {
+  --editor-bg: rgba(40, 42, 54, 0.95);
+  --editor-text: #f8f8f2;
+  --editor-border: rgba(68, 71, 90, 0.8);
+  --editor-accent: #bd93f9;
+  --editor-muted: #6272a4;
+  --editor-surface: rgba(68, 71, 90, 0.9);
+  --editor-hover: rgba(98, 114, 164, 0.3);
+}
+
+.theme-nord {
+  --editor-bg: rgba(46, 52, 64, 0.95);
+  --editor-text: #eceff4;
+  --editor-border: rgba(67, 76, 94, 0.8);
+  --editor-accent: #88c0d0;
+  --editor-muted: #4c566a;
+  --editor-surface: rgba(59, 66, 82, 0.9);
+  --editor-hover: rgba(76, 86, 106, 0.4);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: transparent;
+  border-radius: 12px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Window drag region */
+.window-drag-region {
+  -webkit-app-region: drag;
+}
+
+.window-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--editor-muted);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--editor-accent);
+}
+
+/* Editor styles */
+.editor-container {
+  background: var(--editor-bg);
+  color: var(--editor-text);
+  border: 1px solid var(--editor-border);
+  border-radius: 12px;
+  overflow: hidden;
+  isolation: isolate;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* Panel styles */
+.panel {
+  background: var(--editor-surface);
+  border: 1px solid var(--editor-border);
+  border-radius: 8px;
+}
+
+/* Button styles */
+.btn {
+  @apply px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150;
+  background: var(--editor-surface);
+  color: var(--editor-text);
+  border: 1px solid var(--editor-border);
+}
+
+.btn:hover {
+  background: var(--editor-hover);
+  border-color: var(--editor-accent);
+}
+
+.btn-primary {
+  background: var(--editor-accent);
+  color: white;
+  border-color: var(--editor-accent);
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
+}
+
+/* Input styles */
+.input {
+  @apply w-full px-3 py-2 rounded-md text-sm;
+  background: var(--editor-surface);
+  color: var(--editor-text);
+  border: 1px solid var(--editor-border);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--editor-accent);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+/* List item styles */
+.list-item {
+  @apply px-3 py-2 rounded-md cursor-pointer transition-all duration-150;
+  background: transparent;
+}
+
+.list-item:hover,
+.list-item.selected {
+  background: var(--editor-hover);
+}
+
+.list-item.active {
+  background: var(--editor-accent);
+  color: white;
+}
+
+/* Status bar */
+.status-bar {
+  @apply flex items-center justify-between px-3 py-1 text-xs;
+  background: var(--editor-surface);
+  color: var(--editor-muted);
+  border-top: 1px solid var(--editor-border);
+  border-radius: 0 0 12px 12px;
+}
+
+/* Keyboard shortcut badge */
+.kbd {
+  @apply inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono;
+  background: var(--editor-surface);
+  color: var(--editor-muted);
+  border: 1px solid var(--editor-border);
+}
+
+/* CodeMirror overrides */
+.cm-editor {
+  height: 100%;
+  font-size: inherit;
+}
+
+.cm-editor .cm-scroller {
+  font-family: inherit;
+}
+
+.cm-editor.cm-focused {
+  outline: none;
+}
+
+.cm-editor .cm-gutters {
+  background: transparent;
+  border-right: 1px solid var(--editor-border);
+}
+
+.cm-editor .cm-activeLineGutter {
+  background: var(--editor-hover);
+}
+
+.cm-editor .cm-activeLine {
+  background: var(--editor-hover);
+}
+
+/* Animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.15s ease-out;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.15s ease-out;
+}
+
+/* Resize handle */
+.resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  cursor: nwse-resize;
+  opacity: 0.3;
+  transition: opacity 0.15s;
+}
+
+.resize-handle:hover {
+  opacity: 0.7;
+}
+
+/* Focus visible */
+:focus-visible {
+  outline: 2px solid var(--editor-accent);
+  outline-offset: 2px;
+}
