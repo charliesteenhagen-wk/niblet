@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-const GITHUB_REPO: &str = "csteamengine/niblet";
+const GITHUB_REPO: &str = "charliesteenhagen-wk/niblet";
 const GITHUB_API_URL: &str = "https://api.github.com/repos";
 
 #[derive(Debug, Serialize, Deserialize)]

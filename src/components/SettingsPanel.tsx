@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-shell';
+import { listen } from '@tauri-apps/api/event';
 import { useSettings } from '../hooks/useSettings';
 import { useEditorStore } from '../stores/editorStore';
 import type { ThemeType } from '../types';
@@ -39,7 +40,7 @@ export function SettingsPanel() {
     invoke<string>('get_app_version').then(setAppVersion).catch(console.error);
   }, []);
 
-  const checkForUpdates = async () => {
+  const checkForUpdates = useCallback(async () => {
     setIsCheckingUpdate(true);
     setUpdateError(null);
     try {
@@ -50,7 +51,18 @@ export function SettingsPanel() {
     } finally {
       setIsCheckingUpdate(false);
     }
-  };
+  }, []);
+
+  // Listen for trigger-update-check event from tray menu
+  useEffect(() => {
+    const unlisten = listen('trigger-update-check', () => {
+      checkForUpdates();
+    });
+
+    return () => {
+      unlisten.then(fn => fn());
+    };
+  }, [checkForUpdates]);
 
   const openDownloadUrl = async () => {
     const url = updateInfo?.download_url || updateInfo?.release_url;

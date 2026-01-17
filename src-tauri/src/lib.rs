@@ -427,9 +427,10 @@ pub fn run() {
             // Create system tray menu
             let show_item = MenuItem::with_id(app, "show", "Show Niblet", true, None::<&str>)?;
             let settings_item = MenuItem::with_id(app, "settings", "Settings...", true, None::<&str>)?;
+            let check_updates_item = MenuItem::with_id(app, "check_updates", "Check for Updates...", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit Niblet", true, None::<&str>)?;
 
-            let menu = Menu::with_items(app, &[&show_item, &settings_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&show_item, &settings_item, &check_updates_item, &quit_item])?;
 
             // Build tray icon - menu shows on left-click
             let _tray = TrayIconBuilder::new()
@@ -449,6 +450,14 @@ pub fn run() {
                                 window.show().ok();
                                 window.set_focus().ok();
                                 window.emit("open-settings", ()).ok();
+                            }
+                        }
+                        "check_updates" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                window.show().ok();
+                                window.set_focus().ok();
+                                window.emit("open-settings", ()).ok();
+                                window.emit("trigger-update-check", ()).ok();
                             }
                         }
                         "quit" => {
