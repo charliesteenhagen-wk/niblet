@@ -112,13 +112,6 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      # Clone macOS-specific dependencies
-      - name: Clone macOS dependencies
-        if: matrix.platform == 'macos-latest'
-        run: |
-          git clone --branch v2.1 https://github.com/ahkohd/tauri-nspanel.git /tmp/tauri-nspanel
-          git clone --branch v2 https://github.com/ahkohd/tauri-toolkit.git /tmp/tauri-toolkit
-
       # macOS code signing
       - name: Import Apple certificates
         if: matrix.platform == 'macos-latest'
