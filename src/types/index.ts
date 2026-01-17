@@ -41,6 +41,15 @@ export interface HistoryStats {
   total_words: number;
 }
 
+export interface ClipboardEntry {
+  id: number;
+  content: string;
+  content_type: string;
+  created_at: string;
+  preview: string;
+  char_count: number;
+}
+
 export interface Snippet {
   id: string;
   name: string;
@@ -71,4 +80,4 @@ export type TextTransform =
   | 'deduplicate'
   | 'reverse';
 
-export type PanelType = 'editor' | 'settings' | 'history' | 'snippets' | 'actions';
+export type PanelType = 'editor' | 'settings' | 'history' | 'snippets' | 'actions' | 'clipboard';

@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { TextStats, PanelType } from '../types';
 
 interface EditorState {
@@ -117,8 +116,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   hideWindow: async () => {
     try {
-      const window = getCurrentWindow();
-      await window.hide();
+      // Use Rust command to hide window (this properly handles NSPanel on macOS)
+      await invoke('hide_window');
       set({ isVisible: false });
     } catch (error) {
       console.error('Failed to hide window:', error);

@@ -7,6 +7,7 @@ import {
   HistoryPanel,
   SnippetsPanel,
   QuickActionsPanel,
+  ClipboardPanel,
 } from './components';
 import { useGlobalHotkey, useKeyboardShortcuts, useSettings } from './hooks';
 import { useEditorStore } from './stores/editorStore';
@@ -167,6 +168,12 @@ function App() {
         {activePanel === 'snippets' && (
           <div className="w-full">
             <SnippetsPanel />
+          </div>
+        )}
+
+        {activePanel === 'clipboard' && (
+          <div className="w-full">
+            <ClipboardPanel />
           </div>
         )}
 

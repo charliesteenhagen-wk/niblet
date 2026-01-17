@@ -1,6 +1,6 @@
 [package]
 name = "niblet"
-version = "0.3.0"
+version = "0.4.0"
 description = "Niblet - Cross-Platform Text Composition Tool"
 authors = ["Niblet Contributors"]
 license = "MIT"
@@ -36,3 +36,9 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-feature
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = "0.24"
+# Note: Using path dependencies for tauri-nspanel and monitor
+# If these don't exist locally, clone them:
+#   git clone --branch v2.1 https://github.com/ahkohd/tauri-nspanel.git /tmp/tauri-nspanel
+#   git clone --branch v2 https://github.com/ahkohd/tauri-toolkit.git /tmp/tauri-toolkit
+tauri-nspanel = { path = "/tmp/tauri-nspanel" }
+monitor = { path = "/tmp/tauri-toolkit/libs/monitor" }

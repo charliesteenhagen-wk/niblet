@@ -1,8 +1,11 @@
 mod clipboard;
+mod clipboard_history;
 mod history;
 mod hotkey;
 mod storage;
 mod updater;
+#[cfg(target_os = "macos")]
+mod window;
 
 use rusqlite::Connection;
 use std::sync::Mutex;
@@ -11,8 +14,17 @@ use tauri::{
     tray::TrayIconBuilder,
     Emitter, Manager, State,
 };
+#[cfg(target_os = "macos")]
+use tauri_nspanel::ManagerExt;
+#[cfg(target_os = "macos")]
+use window::{WebviewWindowExt, MAIN_WINDOW_LABEL};
 
 use clipboard::{calculate_text_stats, transform_text, TextStats, TextTransform};
+use clipboard_history::{
+    add_clipboard_entry, clear_clipboard_history, cleanup_clipboard_history,
+    delete_clipboard_entry, get_clipboard_entries, init_clipboard_table,
+    search_clipboard_entries, ClipboardEntry, ClipboardMonitor,
+};
 use history::{
     add_entry, cleanup_old_entries, clear_history, delete_entry, export_history, get_entries,
     get_stats, init_database, search_entries, HistoryEntry, HistoryStats,
@@ -102,6 +114,35 @@ fn cleanup_history(state: State<AppState>, max_entries: u32) -> Result<u32, Stri
 fn export_all_history(state: State<AppState>) -> Result<Vec<HistoryEntry>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     export_history(&conn).map_err(|e| e.to_string())
+}
+
+// Clipboard history commands
+#[tauri::command]
+fn get_clipboard_history(state: State<AppState>, limit: u32) -> Result<Vec<ClipboardEntry>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    get_clipboard_entries(&conn, limit).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn search_clipboard_history(
+    state: State<AppState>,
+    query: String,
+    limit: u32,
+) -> Result<Vec<ClipboardEntry>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    search_clipboard_entries(&conn, &query, limit).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_clipboard_item(state: State<AppState>, id: i64) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    delete_clipboard_entry(&conn, id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn clear_clipboard_history_cmd(state: State<AppState>) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    clear_clipboard_history(&conn).map_err(|e| e.to_string())
 }
 
 // Snippets commands
@@ -224,76 +265,94 @@ async fn show_window(window: tauri::Window, state: State<'_, AppState>) -> Resul
         }
     }
 
-    // Position window on the monitor where the cursor is
+    // On macOS, use NSPanel for fullscreen overlay support
+    // Panel operations MUST run on the main thread
     #[cfg(target_os = "macos")]
     {
-        use core_graphics::event::CGEvent;
-        use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
-        use tauri::PhysicalPosition;
+        let app_handle = window.app_handle().clone();
+        let app_handle_inner = app_handle.clone();
 
-        // Get cursor position using CoreGraphics
-        if let Ok(source) = CGEventSource::new(CGEventSourceStateID::HIDSystemState) {
-            if let Ok(event) = CGEvent::new(source) {
-                let cursor_pos = event.location();
-                log::info!("Cursor position: ({}, {})", cursor_pos.x, cursor_pos.y);
-
-                // Get all monitors and find which one contains the cursor
-                if let Ok(monitors) = window.available_monitors() {
-                    for monitor in monitors {
-                        let pos = monitor.position();
-                        let size = monitor.size();
-
-                        // Check if cursor is within this monitor's bounds
-                        let in_x = cursor_pos.x >= pos.x as f64
-                            && cursor_pos.x < (pos.x + size.width as i32) as f64;
-                        let in_y = cursor_pos.y >= pos.y as f64
-                            && cursor_pos.y < (pos.y + size.height as i32) as f64;
-
-                        if in_x && in_y {
-                            log::info!("Found active monitor: {:?}", monitor.name());
-
-                            // Get window size
-                            if let Ok(win_size) = window.outer_size() {
-                                // Calculate center position on this monitor
-                                let center_x = pos.x + (size.width as i32 - win_size.width as i32) / 2;
-                                let center_y = pos.y + (size.height as i32 - win_size.height as i32) / 2;
-
-                                log::info!("Centering window at ({}, {})", center_x, center_y);
-                                let _ = window.set_position(PhysicalPosition::new(center_x, center_y));
-                            }
-                            break;
-                        }
+        // Run panel operations on the main thread
+        app_handle
+            .run_on_main_thread(move || {
+                let webview_window = match app_handle_inner.get_webview_window(MAIN_WINDOW_LABEL) {
+                    Some(w) => w,
+                    None => {
+                        log::error!("Failed to get webview window");
+                        return;
                     }
+                };
+
+                // Get or create the panel
+                let panel = match app_handle_inner
+                    .get_webview_panel(MAIN_WINDOW_LABEL)
+                    .or_else(|_| webview_window.to_niblet_panel())
+                {
+                    Ok(p) => p,
+                    Err(e) => {
+                        log::error!("Failed to get/create panel: {:?}", e);
+                        return;
+                    }
+                };
+
+                // Center at cursor monitor and show
+                if let Err(e) = webview_window.center_at_cursor_monitor() {
+                    log::warn!("Failed to center at cursor monitor: {}", e);
                 }
-            }
-        }
+
+                panel.show_and_make_key();
+                log::info!("show_window (panel) completed successfully");
+            })
+            .map_err(|e| e.to_string())?;
+
+        return Ok(());
     }
 
-    // On non-macOS, just center on primary monitor
+    // On non-macOS, use standard window behavior
     #[cfg(not(target_os = "macos"))]
     {
         let _ = window.center();
+
+        log::info!("Showing window...");
+        window.show().map_err(|e| {
+            log::error!("Failed to show window: {}", e);
+            e.to_string()
+        })?;
+
+        log::info!("Setting focus...");
+        window.set_focus().map_err(|e| {
+            log::error!("Failed to set focus: {}", e);
+            e.to_string()
+        })?;
+
+        log::info!("show_window completed successfully");
+        Ok(())
     }
-
-    log::info!("Showing window...");
-    window.show().map_err(|e| {
-        log::error!("Failed to show window: {}", e);
-        e.to_string()
-    })?;
-
-    log::info!("Setting focus...");
-    window.set_focus().map_err(|e| {
-        log::error!("Failed to set focus: {}", e);
-        e.to_string()
-    })?;
-
-    log::info!("show_window completed successfully");
-    Ok(())
 }
 
 #[tauri::command]
 async fn hide_window(window: tauri::Window) -> Result<(), String> {
-    window.hide().map_err(|e| e.to_string())
+    #[cfg(target_os = "macos")]
+    {
+        let app_handle = window.app_handle().clone();
+        let app_handle_inner = app_handle.clone();
+        // Run panel operations on the main thread
+        app_handle
+            .run_on_main_thread(move || {
+                if let Ok(panel) = app_handle_inner.get_webview_panel(MAIN_WINDOW_LABEL) {
+                    if panel.is_visible() {
+                        panel.hide();
+                    }
+                }
+            })
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        window.hide().map_err(|e| e.to_string())
+    }
 }
 
 #[tauri::command]
@@ -302,8 +361,26 @@ async fn hide_and_paste(window: tauri::Window, state: State<'_, AppState>) -> Re
     #[cfg(target_os = "macos")]
     let previous_app: Option<String> = state.previous_app.lock().unwrap().clone();
 
-    // Hide the window
-    window.hide().map_err(|e| e.to_string())?;
+    // Hide the window/panel - must run on main thread
+    #[cfg(target_os = "macos")]
+    {
+        let app_handle = window.app_handle().clone();
+        let app_handle_inner = app_handle.clone();
+        app_handle
+            .run_on_main_thread(move || {
+                if let Ok(panel) = app_handle_inner.get_webview_panel(MAIN_WINDOW_LABEL) {
+                    if panel.is_visible() {
+                        panel.hide();
+                    }
+                }
+            })
+            .map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        window.hide().map_err(|e| e.to_string())?;
+    }
 
     // On macOS, activate the previous app
     #[cfg(target_os = "macos")]
@@ -356,6 +433,10 @@ fn uuid_v4() -> String {
 pub fn run() {
     // Initialize database
     let db = init_database().expect("Failed to initialize database");
+
+    // Initialize clipboard history table
+    init_clipboard_table(&db).expect("Failed to initialize clipboard history table");
+
     #[cfg(target_os = "macos")]
     let app_state = AppState {
         db: Mutex::new(db),
@@ -364,7 +445,7 @@ pub fn run() {
     #[cfg(not(target_os = "macos"))]
     let app_state = AppState { db: Mutex::new(db) };
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .manage(app_state)
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -378,7 +459,15 @@ pub fn run() {
             tauri_plugin_log::Builder::default()
                 .level(log::LevelFilter::Info)
                 .build(),
-        )
+        );
+
+    // Add NSPanel plugin on macOS for fullscreen overlay support
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.plugin(tauri_nspanel::init());
+    }
+
+    builder
         .invoke_handler(tauri::generate_handler![
             // Settings
             get_settings,
@@ -404,6 +493,11 @@ pub fn run() {
             get_text_stats,
             transform_text_cmd,
             count_pattern_occurrences,
+            // Clipboard history
+            get_clipboard_history,
+            search_clipboard_history,
+            delete_clipboard_item,
+            clear_clipboard_history_cmd,
             // Window
             show_window,
             hide_window,
@@ -424,6 +518,23 @@ pub fn run() {
                 app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             }
 
+            // Start clipboard monitoring
+            let state = app.state::<AppState>();
+            let db_path = history::get_db_path().expect("Failed to get db path");
+            let monitor = ClipboardMonitor::new();
+            monitor.start(move |content| {
+                // Open a new connection for the background thread
+                if let Ok(conn) = rusqlite::Connection::open(&db_path) {
+                    if let Err(e) = add_clipboard_entry(&conn, &content, "text") {
+                        log::error!("Failed to add clipboard entry: {}", e);
+                    } else {
+                        log::info!("Added clipboard entry: {} chars", content.len());
+                        // Cleanup old entries (keep last 100)
+                        let _ = cleanup_clipboard_history(&conn, 100);
+                    }
+                }
+            });
+
             // Create system tray menu
             let show_item = MenuItem::with_id(app, "show", "Show Niblet", true, None::<&str>)?;
             let settings_item = MenuItem::with_id(app, "settings", "Settings...", true, None::<&str>)?;
@@ -440,24 +551,76 @@ pub fn run() {
                 .on_menu_event(|app, event| {
                     match event.id.as_ref() {
                         "show" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                window.show().ok();
-                                window.set_focus().ok();
+                            #[cfg(target_os = "macos")]
+                            {
+                                if let Some(window) = app.get_webview_window("main") {
+                                    // Get or create the panel
+                                    let panel = app
+                                        .get_webview_panel(MAIN_WINDOW_LABEL)
+                                        .or_else(|_| window.to_niblet_panel());
+
+                                    if let Ok(panel) = panel {
+                                        window.center_at_cursor_monitor().ok();
+                                        panel.show_and_make_key();
+                                    }
+                                }
+                            }
+                            #[cfg(not(target_os = "macos"))]
+                            {
+                                if let Some(window) = app.get_webview_window("main") {
+                                    window.show().ok();
+                                    window.set_focus().ok();
+                                }
                             }
                         }
                         "settings" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                window.show().ok();
-                                window.set_focus().ok();
-                                window.emit("open-settings", ()).ok();
+                            #[cfg(target_os = "macos")]
+                            {
+                                if let Some(window) = app.get_webview_window("main") {
+                                    let panel = app
+                                        .get_webview_panel(MAIN_WINDOW_LABEL)
+                                        .or_else(|_| window.to_niblet_panel());
+
+                                    if let Ok(panel) = panel {
+                                        window.center_at_cursor_monitor().ok();
+                                        panel.show_and_make_key();
+                                        window.emit("open-settings", ()).ok();
+                                    }
+                                }
+                            }
+                            #[cfg(not(target_os = "macos"))]
+                            {
+                                if let Some(window) = app.get_webview_window("main") {
+                                    window.show().ok();
+                                    window.set_focus().ok();
+                                    window.emit("open-settings", ()).ok();
+                                }
                             }
                         }
                         "check_updates" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                window.show().ok();
-                                window.set_focus().ok();
-                                window.emit("open-settings", ()).ok();
-                                window.emit("trigger-update-check", ()).ok();
+                            #[cfg(target_os = "macos")]
+                            {
+                                if let Some(window) = app.get_webview_window("main") {
+                                    let panel = app
+                                        .get_webview_panel(MAIN_WINDOW_LABEL)
+                                        .or_else(|_| window.to_niblet_panel());
+
+                                    if let Ok(panel) = panel {
+                                        window.center_at_cursor_monitor().ok();
+                                        panel.show_and_make_key();
+                                        window.emit("open-settings", ()).ok();
+                                        window.emit("trigger-update-check", ()).ok();
+                                    }
+                                }
+                            }
+                            #[cfg(not(target_os = "macos"))]
+                            {
+                                if let Some(window) = app.get_webview_window("main") {
+                                    window.show().ok();
+                                    window.set_focus().ok();
+                                    window.emit("open-settings", ()).ok();
+                                    window.emit("trigger-update-check", ()).ok();
+                                }
                             }
                         }
                         "quit" => {
