@@ -281,39 +281,6 @@ async fn show_window(window: tauri::Window, state: State<'_, AppState>) -> Resul
         e.to_string()
     })?;
 
-    // On macOS, set window level high enough to appear over full-screen apps
-    #[cfg(target_os = "macos")]
-    {
-        use cocoa::appkit::{NSWindow, NSWindowCollectionBehavior};
-        use cocoa::base::{id, nil};
-        use objc::{msg_send, sel, sel_impl};
-        use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-
-        if let Ok(handle) = window.window_handle() {
-            if let RawWindowHandle::AppKit(appkit_handle) = handle.as_raw() {
-                let ns_view = appkit_handle.ns_view.as_ptr() as id;
-                unsafe {
-                    // Get the NSWindow from the NSView using objc message send
-                    let ns_window: id = msg_send![ns_view, window];
-                    if ns_window != nil {
-                        // Set window level to appear over full-screen apps
-                        // NSPopUpMenuWindowLevel = 101
-                        const NS_POP_UP_MENU_WINDOW_LEVEL: i64 = 101;
-                        ns_window.setLevel_(NS_POP_UP_MENU_WINDOW_LEVEL);
-
-                        // Allow window to appear on all spaces including full-screen spaces
-                        let behavior = NSWindowCollectionBehavior::NSWindowCollectionBehaviorCanJoinAllSpaces
-                            | NSWindowCollectionBehavior::NSWindowCollectionBehaviorFullScreenAuxiliary
-                            | NSWindowCollectionBehavior::NSWindowCollectionBehaviorStationary;
-                        ns_window.setCollectionBehavior_(behavior);
-
-                        log::info!("Set window level to {} with full-screen overlay behavior", NS_POP_UP_MENU_WINDOW_LEVEL);
-                    }
-                }
-            }
-        }
-    }
-
     log::info!("Setting focus...");
     window.set_focus().map_err(|e| {
         log::error!("Failed to set focus: {}", e);
